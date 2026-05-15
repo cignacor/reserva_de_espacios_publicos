@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recuperar Clave – SICAU</title>
+    <link rel="stylesheet" href="../archivos_css/login.css">
+    <style>
+        .mensaje {
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 13px;
+            display: none;
+        }
+        .mensaje.error {
+            color: #c0392b;
+            background-color: #fdecea;
+            border: 1px solid #e74c3c;
+        }
+        .mensaje.exito {
+            color: #1e7e34;
+            background-color: #eafaf1;
+            border: 1px solid #28a745;
+        }
+        .btn-link {
+            background: none;
+            border: none;
+            color: #03284d;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+            margin-top: -5px;
+        }
+        .btn-link:hover { color: #4d9ab1; }
+        .usuario-info {
+            background-color: #eaf4fb;
+            border: 1px solid #4d9ab1;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 13px;
+            color: #03284d;
+            display: none;
+        }
+        #seccionCambio { display: none; }
+    </style>
+</head>
+<body>
+    <h1>RESERVA DE ESPACIOS</h1>
+
+    <div class="Contenedor_login">
+        <img src="../imagenes/Logo_pascual.png" alt="Logo de la universidad" width="120">
+        <h2>Recuperar Clave</h2>
+
+        <!-- Paso 1: verificar correo -->
+        <form id="verificarForm">
+            <label for="correo">Correo institucional</label>
+            <input type="email" id="correo" name="correo"
+                placeholder="usuario@universidad.edu" required>
+
+            <div class="mensaje" id="mensajeVerificar"></div>
+            <div class="usuario-info" id="usuarioInfo"></div>
+
+            <button type="submit" id="btnVerificar">Verificar correo</button>
+            <button type="button" class="btn-link" id="btnVolver">← Volver al Login</button>
+        </form>
+
+        <!-- Paso 2: cambiar contraseña -->
+        <form id="seccionCambio">
+            <label for="nuevaClave">Nueva contraseña</label>
+            <input type="password" id="nuevaClave" placeholder="Mínimo 6 caracteres" required>
+
+            <label for="confirmarClave">Confirmar contraseña</label>
+            <input type="password" id="confirmarClave" placeholder="Repite la contraseña" required>
+
+            <div class="mensaje" id="mensajeCambio"></div>
+
+            <button type="submit">Cambiar contraseña</button>
+            <button type="button" class="btn-link" id="btnCancelarCambio">← Volver</button>
+        </form>
+    </div>
+
+    <script>
+        const DOMINIO = '@universidad.edu';
+        let correoVerificado = '';
+
+        // Pre-llenar correo si viene desde login
+        const params = new URLSearchParams(window.location.search);
+        const correoParam = params.get('correo');
+        if (correoParam) document.getElementById('correo').value = decodeURIComponent(correoParam);
+
+        function mostrarMensaje(id, texto, tipo) {
+            const el = document.getElementById(id);
+            el.textContent = texto;
+            el.className = `mensaje ${tipo}`;
+            el.style.display = 'block';
+        }
+
+        function ocultarMensaje(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+
+        // Paso 1: verificar correo
+        document.getElementById('verificarForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('correo').value.trim();
+            ocultarMensaje('mensajeVerificar');
+            document.getElementById('usuarioInfo').style.display = 'none';
+
+            if (!email.endsWith(DOMINIO)) {
+                mostrarMensaje('mensajeVerificar', 'El correo debe pertenecer al dominio @universidad.edu', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('../archivos_php/recuperar_clave.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'verificar', email })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    correoVerificado = email;
+                    const info = document.getElementById('usuarioInfo');
+                    info.textContent = `✓ Usuario encontrado: ${data.nombre} (${data.tipo})`;
+                    info.style.display = 'block';
+
+                    // Mostrar sección de cambio de clave
+                    setTimeout(() => {
+                        document.getElementById('verificarForm').style.display = 'none';
+                        document.getElementById('seccionCambio').style.display = 'flex';
+                    }, 800);
+                } else {
+                    mostrarMensaje('mensajeVerificar', data.message, 'error');
+                }
+            } catch {
+                mostrarMensaje('mensajeVerificar', 'Error de conexión con el servidor', 'error');
+            }
+        });
+
+        // Paso 2: cambiar contraseña
+        document.getElementById('seccionCambio').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nueva = document.getElementById('nuevaClave').value;
+            const confirmar = document.getElementById('confirmarClave').value;
+            ocultarMensaje('mensajeCambio');
+
+            try {
+                const res = await fetch('../archivos_php/recuperar_clave.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'cambiar',
+                        email: correoVerificado,
+                        nueva_contrasena: nueva,
+                        confirmar_contrasena: confirmar
+                    })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    mostrarMensaje('mensajeCambio', '✓ ' + data.message + ' Redirigiendo al login...', 'exito');
+                    setTimeout(() => window.location.href = 'login.html', 2000);
+                } else {
+                    mostrarMensaje('mensajeCambio', data.message, 'error');
+                }
+            } catch {
+                mostrarMensaje('mensajeCambio', 'Error de conexión con el servidor', 'error');
+            }
+        });
+
+        document.getElementById('btnVolver').addEventListener('click', () => {
+            window.location.href = 'login.html';
+        });
+
+        document.getElementById('btnCancelarCambio').addEventListener('click', () => {
+            document.getElementById('seccionCambio').style.display = 'none';
+            document.getElementById('verificarForm').style.display = 'flex';
+            document.getElementById('usuarioInfo').style.display = 'none';
+            ocultarMensaje('mensajeVerificar');
+        });
+    </script>
+</body>
+</html>

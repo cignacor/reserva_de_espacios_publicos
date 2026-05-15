@@ -47,8 +47,21 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     }
 });
 
-// Agregar funcionalidad para mostrar información del sistema
 document.addEventListener('DOMContentLoaded', function() {
+    // Pre-llenar el correo si viene desde verificar_correo.html
+    const params = new URLSearchParams(window.location.search);
+    const correo = params.get('correo');
+    if (correo) {
+        document.getElementById('email').value = decodeURIComponent(correo);
+    }
+
+    // Botón olvidé mi clave
+    document.getElementById('btnOlvideClave').addEventListener('click', () => {
+        const email = document.getElementById('email').value.trim();
+        const correoParam = email ? `?correo=${encodeURIComponent(email)}` : '';
+        window.location.href = `recuperar_clave.html${correoParam}`;
+    });
+
     console.log("Sistema SICAU - Login cargado");
     console.log("Redirigiendo basado en tipo de usuario");
 

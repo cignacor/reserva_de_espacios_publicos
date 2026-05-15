@@ -1,7 +1,14 @@
 // SECCION ADMINISTRATIVO RESERVAS
 
-
-// SECCION ADMINISTRATIVO RESERVAS
+// Verificar sesión activa y rol de administrador
+(function checkSession() {
+    const user = JSON.parse(localStorage.getItem('sicau_user') || 'null');
+    if (!user || !user.id) {
+        window.location.href = 'login.html';
+    } else if (user.tipo !== 'administrador') {
+        window.location.href = 'index.html';
+    }
+})();
 
 
 
@@ -44,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     seccionConfiguracion.classList.remove('oculto');
     formulario.classList.add('oculto');
     seccionReservas.classList.add('oculto');
+    cargarEstadisticas();
     seccionConfiguracion.scrollIntoView({ behavior: 'smooth' });
   });
 
@@ -203,19 +211,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+  // Función para cargar estadísticas
+  function cargarEstadisticas() {
+    fetch('../archivos_php/reservas.php?action=estadisticas')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          const s = data.data;
+          document.getElementById('stat-reservas-activas').textContent = s.reservas_activas ?? '–';
+          document.getElementById('stat-total-reservas').textContent = s.total_reservas ?? '–';
+          document.getElementById('stat-espacios').textContent = s.total_espacios ?? '–';
+          document.getElementById('stat-departamentos').textContent = s.total_departamentos ?? '–';
+        }
+      })
+      .catch(err => console.error('Error cargando estadísticas:', err));
+  }
+
   // Función para cargar reservas
   function cargarReservas() {
-    console.log('Cargando reservas...');
     fetch('../archivos_php/reservas.php?action=reservas')
       .then(res => {
-        console.log('Respuesta del servidor:', res);
-        if (!res.ok) {
-          throw new Error('Error en la respuesta del servidor');
-        }
+        if (!res.ok) throw new Error('Error en la respuesta del servidor');
         return res.json();
       })
       .then(data => {
-        console.log('Datos recibidos:', data);
         if (data.success && Array.isArray(data.data)) {
           const contenedor = document.getElementById('lista-reservas');
           contenedor.innerHTML = '';
@@ -227,23 +246,40 @@ document.addEventListener('DOMContentLoaded', () => {
               card.className = 'espacio-card';
               card.innerHTML = `
                 <h3>${reserva.fecha} - ${reserva.horario}</h3>
-                <p><strong>Espacio:</strong> ${reserva.espacio}</p>
-                <p><strong>Usuario:</strong> ${reserva.usuario}</p>
-                <p><strong>Estado:</strong> ${reserva.estado}</p>
+                <p><strong>Espacio:</strong> ${reserva.espacio_nombre || 'N/A'}</p>
+                <p><strong>Usuario:</strong> ${reserva.usuario_nombre || 'Sin usuario'}</p>
+                <p><strong>Departamento:</strong> ${reserva.departamento_nombre || 'N/A'}</p>
+                <p><strong>Estado:</strong> <span class="estado-${reserva.estado}">${reserva.estado}</span></p>
+                ${reserva.estado === 'activa' ? `<button class="btn-cancelar-reserva" data-id="${reserva.id}">Cancelar reserva</button>` : ''}
               `;
               contenedor.appendChild(card);
             });
+
+            // Eventos para cancelar
+            contenedor.querySelectorAll('.btn-cancelar-reserva').forEach(btn => {
+              btn.addEventListener('click', () => {
+                if (!confirm('¿Cancelar esta reserva?')) return;
+                fetch('../archivos_php/reservas.php?action=cancelar_reserva', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ reserva_id: btn.dataset.id })
+                })
+                .then(r => r.json())
+                .then(result => {
+                  alert(result.success ? 'Reserva cancelada' : 'Error: ' + result.message);
+                  if (result.success) cargarReservas();
+                })
+                .catch(err => console.error('Error:', err));
+              });
+            });
           }
         } else {
-          console.error('Error: Datos no válidos o respuesta fallida');
-          const contenedor = document.getElementById('lista-reservas');
-          contenedor.innerHTML = '<p>Error al cargar reservas.</p>';
+          document.getElementById('lista-reservas').innerHTML = '<p>Error al cargar reservas.</p>';
         }
       })
       .catch(err => {
         console.error('Error al cargar reservas:', err);
-        const contenedor = document.getElementById('lista-reservas');
-        contenedor.innerHTML = '<p>Error al cargar reservas.</p>';
+        document.getElementById('lista-reservas').innerHTML = '<p>Error al cargar reservas.</p>';
       });
   }
 });

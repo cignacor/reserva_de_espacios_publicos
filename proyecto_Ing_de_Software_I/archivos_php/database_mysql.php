@@ -22,6 +22,10 @@ class DatabaseMySQL {
         $this->seedData();
     }
 
+    public function getConnection() {
+        return $this->db;
+    }
+
     private function connect() {
         try {
             $this->db = new PDO(
@@ -117,16 +121,132 @@ class DatabaseMySQL {
     }
 
   
-    public function checkDisponibilidad($espacioId, $fecha, $horario) {
-        $sql = "
-            SELECT COUNT(*) AS count
-            FROM reservas
-            WHERE espacio_id = ? AND fecha = ? AND horario = ? AND estado = '" . self::ESTADO_ACTIVA . "'
-        ";
-
+    public function checkDisponibilidad($espacioId, $fecha, $horario, $excludeReservaId = null) {
+        $sql = "SELECT COUNT(*) AS count FROM reservas
+                WHERE espacio_id = ? AND fecha = ? AND horario = ? AND estado = '" . self::ESTADO_ACTIVA . "'";
+        $params = [$espacioId, $fecha, $horario];
+        if ($excludeReservaId) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeReservaId;
+        }
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$espacioId, $fecha, $horario]);
+        $stmt->execute($params);
         return $stmt->fetch()['count'] == 0;
+    }
+
+    public function getDepartamentos() {
+        $stmt = $this->db->query("SELECT * FROM departamentos WHERE activo = 1 ORDER BY nombre");
+        return $stmt->fetchAll();
+    }
+
+    public function getAllEspacios() {
+        $stmt = $this->db->query("
+            SELECT e.*, d.nombre as departamento_nombre, d.codigo as departamento_codigo
+            FROM espacios e
+            JOIN departamentos d ON e.departamento_id = d.id
+            WHERE e.activo = 1 ORDER BY d.nombre, e.nombre
+        ");
+        return $stmt->fetchAll();
+    }
+
+    public function getEspaciosByDepartamento($departamentoCodigo) {
+        $stmt = $this->db->prepare("
+            SELECT e.*, d.nombre as departamento_nombre, d.codigo as departamento_codigo
+            FROM espacios e
+            JOIN departamentos d ON e.departamento_id = d.id
+            WHERE d.codigo = ? AND e.activo = 1 ORDER BY e.nombre
+        ");
+        $stmt->execute([$departamentoCodigo]);
+        return $stmt->fetchAll();
+    }
+
+    public function getEspaciosByTipo($tipo) {
+        $stmt = $this->db->prepare("
+            SELECT e.*, d.nombre as departamento_nombre, d.codigo as departamento_codigo
+            FROM espacios e
+            JOIN departamentos d ON e.departamento_id = d.id
+            WHERE e.tipo = ? AND e.activo = 1 ORDER BY e.nombre
+        ");
+        $stmt->execute([$tipo]);
+        return $stmt->fetchAll();
+    }
+
+    public function getEspaciosByDepartamentoAndTipo($departamentoCodigo, $tipo) {
+        $stmt = $this->db->prepare("
+            SELECT e.*, d.nombre as departamento_nombre, d.codigo as departamento_codigo
+            FROM espacios e
+            JOIN departamentos d ON e.departamento_id = d.id
+            WHERE d.codigo = ? AND e.tipo = ? AND e.activo = 1 ORDER BY e.nombre
+        ");
+        $stmt->execute([$departamentoCodigo, $tipo]);
+        return $stmt->fetchAll();
+    }
+
+    public function getReservas($usuarioId = null) {
+        $sql = "
+            SELECT r.id, r.fecha, r.horario, r.estado, r.created_at, r.updated_at,
+                   r.espacio_id, r.departamento_codigo,
+                   e.nombre as espacio_nombre, e.capacidad, e.tipo as espacio_tipo,
+                   d.nombre as departamento_nombre, d.codigo as departamento_codigo,
+                   u.nombre as usuario_nombre, u.email as usuario_email
+            FROM reservas r
+            JOIN espacios e ON r.espacio_id = e.id
+            JOIN departamentos d ON r.departamento_codigo = d.codigo
+            LEFT JOIN usuarios u ON r.usuario_id = u.id
+        ";
+        if ($usuarioId) {
+            $stmt = $this->db->prepare($sql . " WHERE r.usuario_id = ? ORDER BY r.fecha DESC");
+            $stmt->execute([$usuarioId]);
+        } else {
+            $stmt = $this->db->query($sql . " ORDER BY r.fecha DESC");
+        }
+        return $stmt->fetchAll();
+    }
+
+    public function getHistorialReservas($usuarioId = null) {
+        return $this->getReservas($usuarioId);
+    }
+
+    public function getEstadisticas() {
+        return [
+            'total_reservas' => $this->db->query("SELECT COUNT(*) FROM reservas")->fetchColumn(),
+            'reservas_activas' => $this->db->query("SELECT COUNT(*) FROM reservas WHERE estado = 'activa'")->fetchColumn(),
+            'total_espacios' => $this->db->query("SELECT COUNT(*) FROM espacios WHERE activo = 1")->fetchColumn(),
+            'total_departamentos' => $this->db->query("SELECT COUNT(*) FROM departamentos WHERE activo = 1")->fetchColumn(),
+        ];
+    }
+
+    public function crearReserva($espacioId, $departamentoCodigo, $fecha, $horario, $usuarioId = null) {
+        $stmt = $this->db->prepare("
+            INSERT INTO reservas (espacio_id, departamento_codigo, fecha, horario, usuario_id, estado)
+            VALUES (?, ?, ?, ?, ?, 'activa')
+        ");
+        $stmt->execute([$espacioId, $departamentoCodigo, $fecha, $horario, $usuarioId]);
+        return $this->db->lastInsertId();
+    }
+
+    public function cancelarReserva($reservaId, $usuarioId = null) {
+        $stmt = $this->db->prepare("UPDATE reservas SET estado = 'cancelada' WHERE id = ?");
+        $stmt->execute([$reservaId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    public function addEspacio($nombre, $tipo, $capacidad, $descripcion, $departamentoId) {
+        $stmt = $this->db->prepare("
+            INSERT INTO espacios (nombre, tipo, capacidad, descripcion, departamento_id)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([$nombre, $tipo, $capacidad, $descripcion, $departamentoId]);
+        return $this->db->lastInsertId();
+    }
+
+    public function editEspacio($id, $nombre, $tipo, $capacidad, $descripcion, $departamentoId) {
+        $stmt = $this->db->prepare("
+            UPDATE espacios SET nombre = ?, tipo = ?, capacidad = ?, descripcion = ?, departamento_id = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$nombre, $tipo, $capacidad, $descripcion, $departamentoId, $id]);
+        return $stmt->rowCount() > 0;
     }
 
 }

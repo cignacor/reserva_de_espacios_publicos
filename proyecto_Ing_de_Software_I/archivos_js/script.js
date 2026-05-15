@@ -1,6 +1,14 @@
 
 //     PATRÓN APLICADO: SINGLETON PATTERN
 
+// Verificar sesión activa
+(function checkSession() {
+    const user = JSON.parse(localStorage.getItem('sicau_user') || 'null');
+    if (!user || !user.id) {
+        window.location.href = 'login.html';
+    }
+})();
+
 
 const SICAUSystemSingleton = (() => {
 
@@ -20,7 +28,7 @@ const SICAUSystemSingleton = (() => {
             this.departamentos = [];
             this.espacios = [];
 
-            this.apiBaseUrl = '/Ing_Soft/proyecto_Ing_de_Software_I/archivos_php/reservas.php';
+            this.apiBaseUrl = '/Ing_Soft_Kathe/proyecto_Ing_de_Software_I/archivos_php/reservas.php';
 
             this.init();
             this.setupHeaderScroll();
@@ -364,13 +372,14 @@ const SICAUSystemSingleton = (() => {
             try {
                 const horarioBackend = this.selectedHorario;
 
+                const user = JSON.parse(localStorage.getItem('sicau_user') || '{}');
                 const reservaData = {
                     id: this.reservaEnEdicion ?? null,
                     espacio_id: this.selectedEspacio.id,
                     departamento_codigo: this.selectedDepartamento,
                     fecha: this.selectedFecha,
                     horario: horarioBackend,
-                    usuario_id: null
+                    usuario_id: user.id ?? null
                 };
 
                 const action = this.reservaEnEdicion ? 'editar' : 'reservar';
@@ -399,7 +408,9 @@ const SICAUSystemSingleton = (() => {
 
         async loadReservas() {
             try {
-                const response = await fetch(`${this.apiBaseUrl}?action=reservas`);
+                const user = JSON.parse(localStorage.getItem('sicau_user') || '{}');
+                const params = user.id ? `?action=reservas&usuario_id=${user.id}` : `?action=reservas`;
+                const response = await fetch(`${this.apiBaseUrl}${params}`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -462,7 +473,8 @@ const SICAUSystemSingleton = (() => {
             const container = document.getElementById('reservasHistorialGrid');
             if (!container) return;
 
-            const historial = this.reservas.filter(r => r.estado !== 'activa');
+            const hoy = new Date().toISOString().split('T')[0];
+            const historial = this.reservas.filter(r => r.estado !== 'activa' || r.fecha < hoy);
 
             if (historial.length === 0) {
                 container.innerHTML = '<p class="text-center">No hay historial de reservas</p>';
@@ -528,31 +540,58 @@ const SICAUSystemSingleton = (() => {
             }
         }
 
-        cargarReservaEnPasos(reservaId) {
+        async cargarReservaEnPasos(reservaId) {
             const reserva = this.reservas.find(r => r.id === reservaId);
             if (!reserva) return;
 
-            this.selectedDepartamento = reserva.departamento_codigo;
-            document.querySelectorAll(".departamento-card").forEach(card => {
-                if (card.dataset.departamento === reserva.departamento_codigo) {
-                    card.classList.add("selected");
-                } else {
-                    card.classList.remove("selected");
-                }
-            });
-
-            this.selectedEspacio = { id: reserva.espacio_id, nombre: reserva.espacio_nombre, capacidad: reserva.capacidad };
-
-            this.selectedFecha = reserva.fecha;
-            document.getElementById("fechaReserva").value = reserva.fecha;
-
-            this.selectedHorario = reserva.horario;
-            this.selectedHorarios = [reserva.horario];
-            this.updateHorariosSeleccionados();
-
             this.reservaEnEdicion = reserva.id;
 
-            this.nextStep(4);
+            // Paso 1: pre-seleccionar departamento
+            this.selectedDepartamento = reserva.departamento_codigo;
+            document.querySelectorAll(".departamento-card").forEach(card => {
+                card.classList.toggle("selected", card.dataset.departamento === reserva.departamento_codigo);
+            });
+            const nextBtn2 = document.getElementById('nextToStep2');
+            if (nextBtn2) nextBtn2.disabled = false;
+
+            // Cargar espacios del departamento y pre-seleccionar el espacio
+            await this.loadEspaciosByDepartamento(reserva.departamento_codigo);
+            this.selectedEspacio = { id: reserva.espacio_id, nombre: reserva.espacio_nombre, capacidad: reserva.capacidad };
+            setTimeout(() => {
+                document.querySelectorAll('.espacio-card').forEach(card => {
+                    card.classList.toggle('selected', card.dataset.espacioId == reserva.espacio_id);
+                });
+                const nextBtn3 = document.getElementById('nextToStep3');
+                if (nextBtn3) nextBtn3.disabled = false;
+            }, 100);
+
+            // Paso 3: pre-seleccionar fecha y cargar disponibilidad
+            this.selectedFecha = reserva.fecha;
+            const fechaInput = document.getElementById("fechaReserva");
+            if (fechaInput) {
+                fechaInput.min = ''; // permitir fechas pasadas al editar
+                fechaInput.value = reserva.fecha;
+            }
+            const horarioSection = document.getElementById('horarioSection');
+            if (horarioSection) horarioSection.style.display = 'block';
+            await this.loadHorariosDisponibles(reserva.fecha);
+
+            // Re-seleccionar el horario actual
+            this.selectedHorario = reserva.horario;
+            this.selectedHorarios = [reserva.horario];
+            const bloqueActual = document.querySelector(`[data-horario="${reserva.horario}"]`);
+            if (bloqueActual) {
+                bloqueActual.classList.add('selected');
+                bloqueActual.classList.add('selectable');
+            }
+            this.updateHorariosSeleccionados();
+
+            // Ir al paso 1 para que el usuario navegue
+            this.showStep(1);
+            this.updateProgressBar(1);
+
+            // Scroll hacia arriba
+            document.querySelector('.reserva-step')?.scrollIntoView({ behavior: 'smooth' });
         }
 
         mostrarResumenReserva() {
@@ -613,7 +652,8 @@ const SICAUSystemSingleton = (() => {
         }
 
         formatDate(dateString) {
-            const date = new Date(dateString);
+            const [year, month, day] = dateString.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
             return date.toLocaleDateString('es-ES', {
                 weekday: 'long',
                 year: 'numeric',
@@ -641,6 +681,7 @@ const SICAUSystemSingleton = (() => {
             this.selectedFecha = null;
             this.selectedHorario = null;
             this.selectedHorarios = [];
+            this.reservaEnEdicion = null;
 
             document.querySelectorAll('.departamento-card').forEach(c => c.classList.remove('selected'));
             document.querySelectorAll('.espacio-card').forEach(c => c.classList.remove('selected'));
@@ -649,7 +690,12 @@ const SICAUSystemSingleton = (() => {
             const horaInicio = document.getElementById('horaInicio');
             const horaFin = document.getElementById('horaFin');
 
-            if (fechaInput) fechaInput.value = '';
+            if (fechaInput) {
+                fechaInput.value = '';
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                fechaInput.min = tomorrow.toISOString().split('T')[0];
+            }
             if (horaInicio) horaInicio.value = '';
             if (horaFin) horaFin.value = '';
 
@@ -833,7 +879,7 @@ const SICAUSystemSingleton = (() => {
 
             for (const bloque of bloquesHorarios) {
                 try {
-                    const response = await fetch(`${this.apiBaseUrl}?action=disponibilidad&espacio_id=${this.selectedEspacio.id}&fecha=${fecha}&horario=${bloque.inicio}-${bloque.fin}`);
+                    const response = await fetch(`${this.apiBaseUrl}?action=disponibilidad&espacio_id=${this.selectedEspacio.id}&fecha=${fecha}&horario=${bloque.inicio}-${bloque.fin}${this.reservaEnEdicion ? '&exclude_id=' + this.reservaEnEdicion : ''}`);
                     const result = await response.json();
 
                     const bloqueElement = document.createElement('div');

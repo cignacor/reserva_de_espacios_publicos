@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Correo – SICAU</title>
+    <link rel="stylesheet" href="../archivos_css/login.css">
+    <style>
+        .mensaje-error {
+            color: #c0392b;
+            background-color: #fdecea;
+            border: 1px solid #e74c3c;
+            border-radius: 5px;
+            padding: 8px 12px;
+            font-size: 13px;
+            display: none;
+        }
+        .btn-secundario {
+            background-color: #6c757d;
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: background 0.3s ease;
+            width: 100%;
+        }
+        .btn-secundario:hover {
+            background-color: #5a6268;
+        }
+        .btn-link {
+            background: none;
+            border: none;
+            color: #03284d;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+            margin-top: -8px;
+        }
+        .btn-link:hover {
+            color: #4d9ab1;
+        }
+    </style>
+</head>
+<body>
+    <h1>RESERVA DE ESPACIOS</h1>
+
+    <div class="Contenedor_login">
+        <img src="../imagenes/Logo_pascual.png" alt="Logo de la universidad" width="120">
+        <h2>Verificar Correo</h2>
+
+        <form id="verificarForm">
+            <label for="correo">Correo institucional</label>
+            <input type="email" id="correo" name="correo"
+                placeholder="usuario@universidad.edu" required>
+
+            <div class="mensaje-error" id="mensajeError">
+                El correo debe pertenecer al dominio @universidad.edu
+            </div>
+
+            <button type="submit">Iniciar Sesión</button>
+            <button type="button" class="btn-secundario" id="btnOlvide">Olvidé mi clave</button>
+            <button type="button" class="btn-link" id="btnInicio">← Volver al Inicio</button>
+        </form>
+    </div>
+
+    <script>
+        const form = document.getElementById('verificarForm');
+        const correoInput = document.getElementById('correo');
+        const mensajeError = document.getElementById('mensajeError');
+        const DOMINIO = '@universidad.edu';
+
+        function validarDominio() {
+            const correo = correoInput.value.trim();
+            if (!correo.endsWith(DOMINIO)) {
+                mensajeError.style.display = 'block';
+                return false;
+            }
+            mensajeError.style.display = 'none';
+            return true;
+        }
+
+        correoInput.addEventListener('input', () => {
+            if (correoInput.value.trim() !== '') validarDominio();
+            else mensajeError.style.display = 'none';
+        });
+
+        // Botón Iniciar Sesión → valida y redirige al login pasando el correo
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!validarDominio()) return;
+            const correo = encodeURIComponent(correoInput.value.trim());
+            window.location.href = `login.html?correo=${correo}`;
+        });
+
+        // Botón Olvidé mi clave → valida y envía solicitud
+        document.getElementById('btnOlvide').addEventListener('click', () => {
+            if (!validarDominio()) return;
+            const correo = correoInput.value.trim();
+            fetch('../archivos_php/login.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'recuperar', email: correo })
+            })
+            .then(r => r.json())
+            .then(() => alert('Si el correo existe en el sistema, recibirás instrucciones de recuperación.'))
+            .catch(() => alert('Solicitud enviada.'));
+        });
+
+        // Botón Inicio → redirige al index si hay sesión, si no al login
+        document.getElementById('btnInicio').addEventListener('click', () => {
+            const user = JSON.parse(localStorage.getItem('sicau_user') || 'null');
+            if (user && user.id) {
+                window.location.href = 'index.html';
+            } else {
+                window.location.href = 'login.html';
+            }
+        });
+    </script>
+</body>
+</html>

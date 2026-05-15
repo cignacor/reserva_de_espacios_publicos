@@ -251,12 +251,13 @@ function checkDisponibilidad($db)
     $espacioId = $_GET['espacio_id'] ?? null;
     $fecha = $_GET['fecha'] ?? null;
     $horario = $_GET['horario'] ?? null;
+    $excludeId = $_GET['exclude_id'] ?? null;
 
     if (!$espacioId || !$fecha || !$horario) {
         throw new Exception('Parámetros faltantes: espacio_id, fecha, horario', 400);
     }
 
-    $disponible = $db->checkDisponibilidad($espacioId, $fecha, $horario);
+    $disponible = $db->checkDisponibilidad($espacioId, $fecha, $horario, $excludeId);
 
     echo json_encode([
         'success' => true,

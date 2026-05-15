@@ -118,10 +118,27 @@
 
       <div id="seccion-configuracion" class="oculto" style="margin-top: 50px;">
         <h2>Estadísticas del Sistema</h2>
-        <p>Aquí podrás ver las estadísticas de uso del sistema, como total de departamentos, espacios y reservas activas.</p>
-        <div style="text-align: center; margin: 20px 0;">
-          <img src="../imagenes/tablaficticia.jpg" alt="Estadísticas Ficticias" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px;">
+        <p>Estado actual de reservas, espacios y departamentos registrados.</p>
+
+        <div id="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin: 25px 0;">
+          <div class="stat-card" style="background:#eaf4fb; border:1px solid #4d9ab1; border-radius:10px; padding:25px; text-align:center;">
+            <div style="font-size:2.5rem; font-weight:bold; color:#03284d;" id="stat-reservas-activas">–</div>
+            <div style="font-size:14px; color:#555; margin-top:6px;">Reservas Activas</div>
+          </div>
+          <div class="stat-card" style="background:#eaf4fb; border:1px solid #4d9ab1; border-radius:10px; padding:25px; text-align:center;">
+            <div style="font-size:2.5rem; font-weight:bold; color:#03284d;" id="stat-total-reservas">–</div>
+            <div style="font-size:14px; color:#555; margin-top:6px;">Total Reservas</div>
+          </div>
+          <div class="stat-card" style="background:#eaf4fb; border:1px solid #4d9ab1; border-radius:10px; padding:25px; text-align:center;">
+            <div style="font-size:2.5rem; font-weight:bold; color:#03284d;" id="stat-espacios">–</div>
+            <div style="font-size:14px; color:#555; margin-top:6px;">Espacios Disponibles</div>
+          </div>
+          <div class="stat-card" style="background:#eaf4fb; border:1px solid #4d9ab1; border-radius:10px; padding:25px; text-align:center;">
+            <div style="font-size:2.5rem; font-weight:bold; color:#03284d;" id="stat-departamentos">–</div>
+            <div style="font-size:14px; color:#555; margin-top:6px;">Departamentos</div>
+          </div>
         </div>
+
         <div style="margin-bottom: 100px;"></div>
       </div>
     </section>
